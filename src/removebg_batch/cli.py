@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--model",
         default="u2netp",
-        help="rembg model name (fast: u2netp; higher quality: isnet-general-use, u2net).",
+        help="Model name (fast: u2netp; higher quality: u2net).",
     )
     p.add_argument(
         "--provider",

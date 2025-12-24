@@ -9,6 +9,7 @@ from typing import Optional
 import numpy as np
 from PIL import Image
 
+from .u2net import U2NetSession, create_u2net_session, predict_mask_u8
 from .tiff_io import alpha_from_mask, load_image, save_rgba_tiff
 
 
@@ -73,9 +74,7 @@ def init_worker(config: WorkerConfig) -> None:
     os.environ.setdefault("MKL_NUM_THREADS", "1")
     os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
-    from rembg import new_session  # type: ignore
-
-    _SESSION = new_session(model_name=config.model, providers=list(config.providers))
+    _SESSION = create_u2net_session(model_name=config.model, providers=list(config.providers))
     _SESSION_MODEL = config.model
     _SESSION_PROVIDERS = config.providers
 
@@ -93,43 +92,17 @@ def process_one(item: WorkItem, config: WorkerConfig) -> WorkResult:
 
         # Build model input (uint8 PIL RGB), optionally downscaled for speed.
         u8_rgb = _to_u8_rgb(rgb)
-        pil = Image.fromarray(u8_rgb, mode="RGB")
-        if config.mask_max_size and config.mask_max_size > 0:
-            w, h = pil.size
-            scale = min(config.mask_max_size / max(w, h), 1.0)
-            if scale < 1.0:
-                new_size = (max(1, int(round(w * scale))), max(1, int(round(h * scale))))
-                pil = pil.resize(new_size, resample=Image.Resampling.LANCZOS)
-
-        # Compute mask (local model)
-        if _SESSION is None:
+        if _SESSION is None or not isinstance(_SESSION, U2NetSession):
             raise RuntimeError("Model session not initialized in worker.")
 
-        from rembg import remove  # type: ignore
-
-        mask_img = remove(
-            pil,
-            session=_SESSION,
-            only_mask=True,
-            alpha_matting=config.alpha_matting,
-            alpha_matting_foreground_threshold=config.am_fg_thresh,
-            alpha_matting_background_threshold=config.am_bg_thresh,
-            alpha_matting_erode_size=config.am_erode_size,
-            post_process_mask=config.post_process_mask,
-        )
-
-        if not isinstance(mask_img, Image.Image):
-            # rembg may return bytes depending on input type; handle defensively.
-            mask_img = Image.open(mask_img)  # type: ignore[arg-type]
-
-        mask_img = mask_img.convert("L")
-        # Upscale mask back to original size
         ow = int(rgb.shape[1])
         oh = int(rgb.shape[0])
-        if mask_img.size != (ow, oh):
-            mask_img = mask_img.resize((ow, oh), resample=Image.Resampling.LANCZOS)
-
-        mask_u8 = np.asarray(mask_img, dtype=np.uint8)
+        mask_u8 = predict_mask_u8(
+            _SESSION,
+            u8_rgb,
+            out_size=(ow, oh),
+            mask_max_size=int(config.mask_max_size),
+        )
         alpha = alpha_from_mask(mask_u8, loaded.dtype)
 
         # If source already has alpha, combine them (preserve existing transparency).

@@ -6,6 +6,7 @@ src/removebg_batch/gui.py
 src/removebg_batch/pipeline.py
 src/removebg_batch/providers.py
 src/removebg_batch/tiff_io.py
+src/removebg_batch/u2net.py
 src/removebg_batch/worker.py
 src/removebg_batch.egg-info/PKG-INFO
 src/removebg_batch.egg-info/SOURCES.txt

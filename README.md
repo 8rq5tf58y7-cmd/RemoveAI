@@ -21,7 +21,7 @@ chmod +x ./scripts/install_mac_linux.sh
 ### Quick start (Windows PowerShell)
 
 ```powershell
-.\scripts\install_windows.bat
+.\scripts\install_windows.ps1
 .\.venv\Scripts\removebg-batch --help
 ```
 
@@ -60,11 +60,5 @@ The resulting binary appears in `dist/`.
 
 ### macOS note (Python 3.13)
 
-If you install with **Python 3.13** on macOS, you may hit build failures for **`llvmlite`** (pulled in via `numba` → `pymatting` → `rembg`) because wheels may not be available yet.
-
-Fix: use **Python 3.12** for now:
-
-```bash
-PYTHON=python3.12 ./scripts/install_mac_linux.sh
-```
+This project uses a small ONNX model + ONNX Runtime and is pinned to **Python 3.10–3.12**. The installer will automatically install **Python 3.12** via `uv`.
 
