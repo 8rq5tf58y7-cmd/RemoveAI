@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -43,7 +45,41 @@ MODEL_SPECS: dict[str, ModelSpec] = {
 
 
 def _models_dir() -> Path:
+    override = os.environ.get("REMOVEBG_BATCH_MODEL_DIR", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
     return Path(user_cache_dir("removebg-batch", "removebg-batch")) / "models"
+
+
+def _acquire_lock(lock_path: Path, *, timeout_s: float = 300.0) -> None:
+    """
+    Simple cross-process lock using an exclusive lock file.
+    """
+    start = time.time()
+    while True:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            return
+        except FileExistsError:
+            # Stale lock safeguard (e.g. crashed process). 1 hour.
+            try:
+                age = time.time() - lock_path.stat().st_mtime
+                if age > 3600:
+                    lock_path.unlink(missing_ok=True)
+                    continue
+            except Exception:
+                pass
+            if time.time() - start > timeout_s:
+                raise TimeoutError(f"Timed out waiting for model download lock: {lock_path}")
+            time.sleep(0.2)
+
+
+def _release_lock(lock_path: Path) -> None:
+    try:
+        lock_path.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 def _sha256_file(path: Path) -> str:
@@ -68,15 +104,24 @@ def ensure_model_file(model: ModelSpec) -> Path:
         else:
             return path
 
-    # Download
-    tmp = path.with_suffix(".onnx.part")
-    with requests.get(model.url, stream=True, timeout=60) as r:
-        r.raise_for_status()
-        with tmp.open("wb") as f:
-            for chunk in r.iter_content(chunk_size=1024 * 1024):
-                if chunk:
-                    f.write(chunk)
-    tmp.replace(path)
+    # Download (guarded so multiple workers don't race-download the same file)
+    lock = path.with_suffix(".onnx.lock")
+    _acquire_lock(lock)
+    try:
+        # Another process may have finished while we waited.
+        if path.exists():
+            return path
+
+        tmp = path.with_suffix(".onnx.part")
+        with requests.get(model.url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with tmp.open("wb") as f:
+                for chunk in r.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+        tmp.replace(path)
+    finally:
+        _release_lock(lock)
 
     if model.sha256:
         got = _sha256_file(path)
