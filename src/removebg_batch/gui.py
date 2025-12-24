@@ -42,9 +42,15 @@ def main() -> None:
     workers_var = tk.IntVar(value=default_workers())
     mask_var = tk.IntVar(value=1024)
 
+    progress_var = tk.IntVar(value=0)
+    progress_text = tk.StringVar(value="")
+    progress = ttk.Progressbar(frm, mode="indeterminate")
+    progress.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(10, 0))
+    ttk.Label(frm, textvariable=progress_text).grid(row=9, column=0, columnspan=3, sticky="w")
+
     log = tk.Text(frm, height=10, width=80)
-    log.grid(row=8, column=0, columnspan=3, sticky="nsew", pady=(10, 0))
-    frm.rowconfigure(8, weight=1)
+    log.grid(row=10, column=0, columnspan=3, sticky="nsew", pady=(6, 0))
+    frm.rowconfigure(10, weight=1)
 
     def _log(msg: str) -> None:
         # Tk widgets must only be updated from the main thread.
@@ -57,6 +63,36 @@ def main() -> None:
     def _set_run_enabled(enabled: bool) -> None:
         def _do():
             btn_run.config(state="normal" if enabled else "disabled")
+
+        root.after(0, _do)
+
+    def _progress_init_unknown() -> None:
+        def _do():
+            progress.config(mode="indeterminate", maximum=100)
+            progress.start(10)
+            progress_text.set("Starting…")
+
+        root.after(0, _do)
+
+    def _progress_init_total(total: int) -> None:
+        def _do():
+            progress.stop()
+            progress.config(mode="determinate", maximum=max(1, total), variable=progress_var)
+            progress_var.set(0)
+            progress_text.set(f"0 / {total}")
+
+        root.after(0, _do)
+
+    def _progress_update(done: int, total: int, processed: int, skipped: int, failed: int) -> None:
+        def _do():
+            progress_var.set(done)
+            progress_text.set(f"{done} / {total}  (ok={processed}, skipped={skipped}, failed={failed})")
+
+        root.after(0, _do)
+
+    def _progress_done() -> None:
+        def _do():
+            progress.stop()
 
         root.after(0, _do)
 
@@ -98,6 +134,7 @@ def main() -> None:
         mask_max_size = int(mask_var.get())
 
         _set_run_enabled(False)
+        _progress_init_unknown()
         _log("Starting… (this can take several minutes)")
 
         def _work() -> None:
@@ -130,6 +167,7 @@ def main() -> None:
                 env = os.environ.copy()
                 env["PYTHONUNBUFFERED"] = "1"
                 env["REMOVEBG_BATCH_NO_PROGRESS"] = "1"
+                env["REMOVEBG_BATCH_PROGRESS"] = "1"
 
                 _log("Command:")
                 _log("  " + " ".join(cmd))
@@ -145,7 +183,27 @@ def main() -> None:
                 )
                 assert proc.stdout is not None
                 for line in proc.stdout:
-                    _log(line.rstrip("\n"))
+                    s = line.rstrip("\n")
+                    if s.startswith("__TOTAL__ "):
+                        try:
+                            total = int(s.split(" ", 1)[1].strip())
+                            _progress_init_total(total)
+                        except Exception:
+                            pass
+                        continue
+                    if s.startswith("__PROGRESS__ "):
+                        try:
+                            parts = s.split()
+                            done = int(parts[1])
+                            total = int(parts[2])
+                            processed = int(parts[3])
+                            skipped = int(parts[4])
+                            failed = int(parts[5])
+                            _progress_update(done, total, processed, skipped, failed)
+                        except Exception:
+                            pass
+                        continue
+                    _log(s)
 
                 rc = proc.wait()
                 if rc != 0:
@@ -153,6 +211,7 @@ def main() -> None:
             except Exception as e:
                 _log(f"[fatal] {e}")
             finally:
+                _progress_done()
                 _set_run_enabled(True)
 
         threading.Thread(target=_work, daemon=True).start()

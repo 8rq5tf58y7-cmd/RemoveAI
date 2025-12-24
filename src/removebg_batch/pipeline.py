@@ -106,6 +106,11 @@ def run_batch(config: RunConfig) -> RunStats:
     files = list(iter_input_files(input_dir, recursive=config.recursive, extensions=extensions))
     total = len(files)
 
+    # Used by GUI to render a progress bar without parsing tqdm.
+    emit_progress = os.environ.get("REMOVEBG_BATCH_PROGRESS", "").strip().lower() in {"1", "true", "yes"}
+    if emit_progress:
+        print(f"__TOTAL__ {total}", flush=True)
+
     # Build work items with preserved relative paths.
     items: list[WorkItem] = []
     for src in files:
@@ -122,8 +127,9 @@ def run_batch(config: RunConfig) -> RunStats:
     processed = 0
     skipped = 0
     failed = 0
+    done = 0
 
-    show_progress = os.environ.get("REMOVEBG_BATCH_NO_PROGRESS", "").strip() not in {"1", "true", "yes"}
+    show_progress = os.environ.get("REMOVEBG_BATCH_NO_PROGRESS", "").strip().lower() not in {"1", "true", "yes"}
 
     # Windows requires spawn-safe entrypoints; ProcessPoolExecutor handles this when called under __main__.
     from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -142,6 +148,9 @@ def run_batch(config: RunConfig) -> RunStats:
                 processed += 1
             else:
                 failed += 1
+            done += 1
+            if emit_progress:
+                print(f"__PROGRESS__ {done} {total} {processed} {skipped} {failed}", flush=True)
         return RunStats(
             total=total,
             processed=processed,
@@ -168,6 +177,9 @@ def run_batch(config: RunConfig) -> RunStats:
                 failed += 1
                 # Keep error output compact (but visible).
                 print(f"[error] {res.src} -> {res.dst}: {res.error}", file=sys.stderr)
+            done += 1
+            if emit_progress:
+                print(f"__PROGRESS__ {done} {total} {processed} {skipped} {failed}", flush=True)
 
     return RunStats(
         total=total,

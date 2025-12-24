@@ -11,3 +11,5 @@ onnxruntime-gpu>=1.20
 
 [rembg]
 rembg>=2.0.69
+numba>=0.61
+llvmlite>=0.44
