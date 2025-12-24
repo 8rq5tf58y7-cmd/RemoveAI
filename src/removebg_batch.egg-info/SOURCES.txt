@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+src/removebg_batch/__init__.py
+src/removebg_batch/cli.py
+src/removebg_batch/gui.py
+src/removebg_batch/pipeline.py
+src/removebg_batch/providers.py
+src/removebg_batch/rembg_engine.py
+src/removebg_batch/tiff_io.py
+src/removebg_batch/u2net.py
+src/removebg_batch/worker.py
+src/removebg_batch.egg-info/PKG-INFO
+src/removebg_batch.egg-info/SOURCES.txt
+src/removebg_batch.egg-info/dependency_links.txt
+src/removebg_batch.egg-info/entry_points.txt
+src/removebg_batch.egg-info/requires.txt
+src/removebg_batch.egg-info/top_level.txt

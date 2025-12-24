@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "removebg-batch"
+version = "0.1.0"
+description = "Local, TIFF-safe batch background removal (1000+ images) using ONNX segmentation models."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "RemoveBG Batch" }]
+
+dependencies = [
+  "numpy>=1.26",
+  "Pillow>=10.4",
+  "tifffile>=2024.9.20",
+  "tqdm>=4.66",
+  "onnxruntime>=1.20",
+  "platformdirs>=4.2",
+  "requests>=2.32",
+]
+
+[project.optional-dependencies]
+# CUDA acceleration (Windows/Linux only, if supported by your environment).
+gpu = ["onnxruntime-gpu>=1.20"]
+rembg = [
+  # Optional higher-level wrapper + extra models / matting.
+  # Kept optional because it can pull in llvmlite/numba on some platforms.
+  "rembg>=2.0.69",
+  # IMPORTANT: without a lower bound, some resolvers may pick very old numba/llvmlite
+  # which do not support Python 3.12+ (and will fail with "only versions >=3.6,<3.10").
+  "numba>=0.61",
+  "llvmlite>=0.44",
+]
+
+[project.scripts]
+removebg-batch = "removebg_batch.cli:main"
+removebg-batch-gui = "removebg_batch.gui:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
