@@ -13,6 +13,7 @@ from .pipeline import RunConfig, default_workers, run_batch
 class UiState:
     input_dir: Path
     output_dir: Path
+    engine: str
     model: str
     provider: str
     workers: int
@@ -32,14 +33,15 @@ def main() -> None:
 
     input_var = tk.StringVar(value="")
     output_var = tk.StringVar(value="")
+    engine_var = tk.StringVar(value="onnx")
     model_var = tk.StringVar(value="u2netp")
     provider_var = tk.StringVar(value="auto")
     workers_var = tk.IntVar(value=default_workers())
     mask_var = tk.IntVar(value=1024)
 
     log = tk.Text(frm, height=10, width=80)
-    log.grid(row=7, column=0, columnspan=3, sticky="nsew", pady=(10, 0))
-    frm.rowconfigure(7, weight=1)
+    log.grid(row=8, column=0, columnspan=3, sticky="nsew", pady=(10, 0))
+    frm.rowconfigure(8, weight=1)
 
     def _log(msg: str) -> None:
         log.insert("end", msg + "\n")
@@ -62,11 +64,27 @@ def main() -> None:
             messagebox.showerror("Missing folders", "Please select both input and output folders.")
             return
 
+        engine = (engine_var.get().strip() or "onnx").lower()
+        if engine == "rembg":
+            # Make this failure friendly: rembg is an optional install and often lives in a separate venv.
+            try:
+                import rembg  # type: ignore  # noqa: F401
+            except Exception:
+                messagebox.showerror(
+                    "rembg not installed",
+                    "You selected engine=rembg, but rembg isn't installed in this environment.\n\n"
+                    "Install it with the rembg installer and launch the GUI from that venv:\n"
+                    "  ./scripts/install_mac_linux_rembg.sh\n"
+                    "  ./.venv-rembg/bin/removebg-batch-gui\n",
+                )
+                return
+
         cfg = RunConfig(
             input_dir=Path(in_dir),
             output_dir=Path(out_dir),
             recursive=True,
             extensions=(".tif", ".tiff", ".jpg", ".jpeg", ".png", ".webp", ".bmp"),
+            engine=engine,
             model=model_var.get().strip() or "u2netp",
             provider=provider_var.get().strip() or "auto",
             workers=int(workers_var.get()),
@@ -110,27 +128,32 @@ def main() -> None:
     ttk.Entry(frm, textvariable=output_var).grid(row=1, column=1, sticky="ew", padx=8, pady=(8, 0))
     ttk.Button(frm, text="Browse…", command=choose_output).grid(row=1, column=2, sticky="e", pady=(8, 0))
 
-    ttk.Label(frm, text="Model").grid(row=2, column=0, sticky="w", pady=(8, 0))
-    ttk.Entry(frm, textvariable=model_var).grid(row=2, column=1, sticky="ew", padx=8, pady=(8, 0))
-    ttk.Label(frm, text='e.g. "u2netp", "isnet-general-use"').grid(row=2, column=2, sticky="w", pady=(8, 0))
+    ttk.Label(frm, text="Engine").grid(row=2, column=0, sticky="w", pady=(8, 0))
+    engine_combo = ttk.Combobox(frm, textvariable=engine_var, values=("onnx", "rembg"), state="readonly", width=10)
+    engine_combo.grid(row=2, column=1, sticky="w", padx=8, pady=(8, 0))
+    ttk.Label(frm, text='onnx = easiest install; rembg = optional extra').grid(row=2, column=2, sticky="w", pady=(8, 0))
 
-    ttk.Label(frm, text="Provider").grid(row=3, column=0, sticky="w", pady=(8, 0))
-    ttk.Entry(frm, textvariable=provider_var).grid(row=3, column=1, sticky="ew", padx=8, pady=(8, 0))
-    ttk.Label(frm, text='e.g. "auto", "cpu", "cuda", "coreml"').grid(row=3, column=2, sticky="w", pady=(8, 0))
+    ttk.Label(frm, text="Model").grid(row=3, column=0, sticky="w", pady=(8, 0))
+    ttk.Entry(frm, textvariable=model_var).grid(row=3, column=1, sticky="ew", padx=8, pady=(8, 0))
+    ttk.Label(frm, text='e.g. "u2netp", "u2net"').grid(row=3, column=2, sticky="w", pady=(8, 0))
 
-    ttk.Label(frm, text="Workers").grid(row=4, column=0, sticky="w", pady=(8, 0))
+    ttk.Label(frm, text="Provider").grid(row=4, column=0, sticky="w", pady=(8, 0))
+    ttk.Entry(frm, textvariable=provider_var).grid(row=4, column=1, sticky="ew", padx=8, pady=(8, 0))
+    ttk.Label(frm, text='e.g. "auto", "cpu", "cuda", "coreml"').grid(row=4, column=2, sticky="w", pady=(8, 0))
+
+    ttk.Label(frm, text="Workers").grid(row=5, column=0, sticky="w", pady=(8, 0))
     ttk.Spinbox(frm, from_=1, to=128, textvariable=workers_var, width=8).grid(
-        row=4, column=1, sticky="w", padx=8, pady=(8, 0)
-    )
-
-    ttk.Label(frm, text="Mask max size").grid(row=5, column=0, sticky="w", pady=(8, 0))
-    ttk.Spinbox(frm, from_=0, to=8192, textvariable=mask_var, width=8).grid(
         row=5, column=1, sticky="w", padx=8, pady=(8, 0)
     )
-    ttk.Label(frm, text="(smaller = faster)").grid(row=5, column=2, sticky="w", pady=(8, 0))
+
+    ttk.Label(frm, text="Mask max size").grid(row=6, column=0, sticky="w", pady=(8, 0))
+    ttk.Spinbox(frm, from_=0, to=8192, textvariable=mask_var, width=8).grid(
+        row=6, column=1, sticky="w", padx=8, pady=(8, 0)
+    )
+    ttk.Label(frm, text="(smaller = faster)").grid(row=6, column=2, sticky="w", pady=(8, 0))
 
     btn_run = ttk.Button(frm, text="Run", command=run_clicked)
-    btn_run.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(12, 0))
+    btn_run.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(12, 0))
 
     _log("Tip: for speed use model=u2netp and a smaller mask max size (e.g. 768–1024).")
     root.minsize(780, 420)

@@ -28,6 +28,22 @@ chmod +x ./scripts/install_mac_linux_rembg.sh
 ./.venv-rembg/bin/removebg-batch --engine rembg --help
 ```
 
+### GUI
+
+- Run (default ONNX engine):
+
+```bash
+./.venv/bin/removebg-batch-gui
+```
+
+- Run (rembg engine available in rembg venv):
+
+```bash
+./.venv-rembg/bin/removebg-batch-gui
+```
+
+The GUI has an **Engine** dropdown (`onnx` / `rembg`).
+
 ### Quick start (Windows PowerShell)
 
 ```powershell
@@ -79,4 +95,24 @@ The resulting binary appears in `dist/`.
 ### macOS note (Python 3.13)
 
 This project uses a small ONNX model + ONNX Runtime and is pinned to **Python 3.10–3.12**. The installer will automatically install **Python 3.12** via `uv`.
+
+### Uninstall / cleanup (macOS)
+
+- Remove project virtual environments:
+
+```bash
+rm -rf .venv .venv-rembg
+```
+
+- If you accidentally ran an installer with `sudo` and `.venv` is owned by root:
+
+```bash
+sudo rm -rf .venv .venv-rembg
+```
+
+- If you installed packages globally by mistake (not recommended), you can uninstall them:
+
+```bash
+python3 -m pip uninstall -y removebg-batch rembg pymatting numba llvmlite
+```
 
