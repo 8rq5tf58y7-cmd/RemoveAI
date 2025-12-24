@@ -37,6 +37,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help='ONNX provider: "auto" (default), "cpu", "cuda", "coreml", or a raw provider name.',
     )
+    p.add_argument(
+        "--model-dir",
+        default="",
+        help="Optional folder to store/download ONNX models (useful if your system drive is full). "
+        "Overrides REMOVEBG_BATCH_MODEL_DIR.",
+    )
 
     p.add_argument(
         "--workers",
@@ -81,6 +87,9 @@ def main(argv: list[str] | None = None) -> None:
 
     input_dir = Path(args.input).expanduser().resolve()
     output_dir = Path(args.output).expanduser().resolve()
+
+    if getattr(args, "model_dir", ""):
+        os.environ["REMOVEBG_BATCH_MODEL_DIR"] = str(Path(args.model_dir).expanduser().resolve())
 
     exts = tuple(e.strip() for e in str(args.extensions).split(",") if e.strip())
 

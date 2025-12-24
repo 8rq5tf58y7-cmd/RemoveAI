@@ -209,6 +209,8 @@ def main() -> None:
                 env["PYTHONUNBUFFERED"] = "1"
                 env["REMOVEBG_BATCH_NO_PROGRESS"] = "1"
                 env["REMOVEBG_BATCH_PROGRESS"] = "1"
+                # If the user set this env var (e.g. to an external drive), keep it for the subprocess.
+                # Otherwise the default cache location is used.
 
                 _log("Command:")
                 _log("  " + " ".join(cmd))

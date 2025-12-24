@@ -136,6 +136,29 @@ def run_batch(config: RunConfig) -> RunStats:
 
     workers = int(config.workers) if config.workers and config.workers > 0 else default_workers()
 
+    # Pre-download the ONNX model once (prevents process-pool crashes if workers race-download,
+    # and produces a clearer error if disk is full).
+    eng = (worker_cfg.engine or "onnx").strip().lower()
+    if eng == "onnx":
+        try:
+            from .u2net import MODEL_SPECS, ensure_model_file
+
+            name = (worker_cfg.model or "u2netp").strip().lower()
+            spec = MODEL_SPECS.get(name)
+            if spec is None:
+                raise ValueError(f"Unknown model '{worker_cfg.model}'. Supported: {', '.join(sorted(MODEL_SPECS))}")
+            ensure_model_file(spec)
+        except OSError as e:
+            if getattr(e, "errno", None) == 28:
+                model_dir = os.environ.get("REMOVEBG_BATCH_MODEL_DIR", "").strip() or "(default cache)"
+                raise OSError(
+                    28,
+                    "No space left on device while downloading the model. "
+                    "Free disk space or set REMOVEBG_BATCH_MODEL_DIR to a folder on a drive with space "
+                    f"(currently: {model_dir}).",
+                ) from e
+            raise
+
     # If only 1 worker, run inline (useful for debugging).
     if workers == 1:
         init_worker(worker_cfg)
