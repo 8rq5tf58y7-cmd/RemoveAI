@@ -24,6 +24,11 @@ dependencies = [
 [project.optional-dependencies]
 # CUDA acceleration (Windows/Linux only, if supported by your environment).
 gpu = ["onnxruntime-gpu>=1.20"]
+rembg = [
+  # Optional higher-level wrapper + extra models / matting.
+  # Kept optional because it can pull in llvmlite/numba on some platforms.
+  "rembg>=2.0.69",
+]
 
 [project.scripts]
 removebg-batch = "removebg_batch.cli:main"

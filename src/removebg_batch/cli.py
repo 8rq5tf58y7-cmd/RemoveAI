@@ -23,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-recursive", action="store_true", help="Do not scan input folder recursively.")
 
     p.add_argument(
+        "--engine",
+        default="onnx",
+        help='Mask engine: "onnx" (default, easy install) or "rembg" (optional extra with more features).',
+    )
+    p.add_argument(
         "--model",
         default="u2netp",
         help="Model name (fast: u2netp; higher quality: u2net).",
@@ -84,6 +89,7 @@ def main(argv: list[str] | None = None) -> None:
         output_dir=output_dir,
         recursive=not args.no_recursive,
         extensions=exts,
+        engine=str(args.engine),
         model=str(args.model),
         provider=str(args.provider),
         workers=int(args.workers),

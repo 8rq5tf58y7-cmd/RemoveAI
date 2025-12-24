@@ -19,6 +19,7 @@ class RunConfig:
     output_dir: Path
     recursive: bool
     extensions: tuple[str, ...]
+    engine: str
     model: str
     provider: str
     workers: int
@@ -89,6 +90,7 @@ def run_batch(config: RunConfig) -> RunStats:
 
     provider_choice = choose_onnx_providers(config.provider)
     worker_cfg = WorkerConfig(
+        engine=str(config.engine),
         model=config.model,
         providers=tuple(provider_choice.providers),
         mask_max_size=int(config.mask_max_size),

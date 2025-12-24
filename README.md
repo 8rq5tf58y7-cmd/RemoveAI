@@ -18,11 +18,28 @@ chmod +x ./scripts/install_mac_linux.sh
 ./.venv/bin/removebg-batch --help
 ```
 
+### Optional: install rembg engine (macOS / Linux)
+
+This enables `--engine rembg` (more features/models, but heavier dependencies).
+
+```bash
+chmod +x ./scripts/install_mac_linux_rembg.sh
+./scripts/install_mac_linux_rembg.sh
+./.venv/bin/removebg-batch --engine rembg --help
+```
+
 ### Quick start (Windows PowerShell)
 
 ```powershell
 .\scripts\install_windows.ps1
 .\.venv\Scripts\removebg-batch --help
+```
+
+### Optional: install rembg engine (Windows PowerShell)
+
+```powershell
+.\scripts\install_windows_rembg.ps1
+.\.venv\Scripts\removebg-batch --engine rembg --help
 ```
 
 ### Example usage
@@ -31,6 +48,7 @@ chmod +x ./scripts/install_mac_linux.sh
 removebg-batch \
   --input "/path/to/input_folder" \
   --output "/path/to/output_folder" \
+  --engine onnx \
   --model u2netp \
   --workers 8 \
   --mask-max-size 1024 \
