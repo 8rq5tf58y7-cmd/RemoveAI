@@ -5,6 +5,7 @@ import tkinter as tk
 import os
 import subprocess
 import sys
+import signal
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -52,6 +53,9 @@ def main() -> None:
     log.grid(row=10, column=0, columnspan=3, sticky="nsew", pady=(6, 0))
     frm.rowconfigure(10, weight=1)
 
+    current_proc: subprocess.Popen[str] | None = None
+    current_proc_lock = threading.Lock()
+
     def _log(msg: str) -> None:
         # Tk widgets must only be updated from the main thread.
         def _do():
@@ -63,6 +67,7 @@ def main() -> None:
     def _set_run_enabled(enabled: bool) -> None:
         def _do():
             btn_run.config(state="normal" if enabled else "disabled")
+            btn_stop.config(state="disabled" if enabled else "normal")
 
         root.after(0, _do)
 
@@ -95,6 +100,41 @@ def main() -> None:
             progress.stop()
 
         root.after(0, _do)
+
+    def stop_clicked() -> None:
+        def _stop_worker() -> None:
+            nonlocal current_proc
+            with current_proc_lock:
+                proc = current_proc
+
+            if proc is None or proc.poll() is not None:
+                return
+
+            _log("Stop requested…")
+            try:
+                if os.name == "posix":
+                    # Subprocess is started in a new session; proc.pid is the process group id.
+                    os.killpg(proc.pid, signal.SIGTERM)
+                else:
+                    try:
+                        proc.send_signal(signal.CTRL_BREAK_EVENT)  # type: ignore[attr-defined]
+                    except Exception:
+                        proc.terminate()
+            except Exception as e:
+                _log(f"[warn] failed to signal process: {e}")
+
+            try:
+                proc.wait(timeout=3)
+            except Exception:
+                try:
+                    if os.name == "posix":
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    else:
+                        proc.kill()
+                except Exception as e:
+                    _log(f"[warn] failed to kill process: {e}")
+
+        threading.Thread(target=_stop_worker, daemon=True).start()
 
     def choose_input() -> None:
         d = filedialog.askdirectory(title="Select input folder")
@@ -138,6 +178,7 @@ def main() -> None:
         _log("Starting… (this can take several minutes)")
 
         def _work() -> None:
+            nonlocal current_proc
             try:
                 # Run the CLI in a subprocess to avoid UI freezes from multiprocessing
                 # and to keep all heavy work outside the Tk process.
@@ -173,14 +214,23 @@ def main() -> None:
                 _log("  " + " ".join(cmd))
                 _log("")
 
-                proc = subprocess.Popen(
+                popen_kwargs: dict[str, object] = {}
+                if os.name == "posix":
+                    popen_kwargs["start_new_session"] = True
+                elif os.name == "nt":
+                    popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+
+                proc = subprocess.Popen(  # type: ignore[type-var]
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
                     bufsize=1,
                     env=env,
+                    **popen_kwargs,
                 )
+                with current_proc_lock:
+                    current_proc = proc
                 assert proc.stdout is not None
                 for line in proc.stdout:
                     s = line.rstrip("\n")
@@ -211,6 +261,8 @@ def main() -> None:
             except Exception as e:
                 _log(f"[fatal] {e}")
             finally:
+                with current_proc_lock:
+                    current_proc = None
                 _progress_done()
                 _set_run_enabled(True)
 
@@ -248,8 +300,15 @@ def main() -> None:
     )
     ttk.Label(frm, text="(smaller = faster)").grid(row=6, column=2, sticky="w", pady=(8, 0))
 
-    btn_run = ttk.Button(frm, text="Run", command=run_clicked)
-    btn_run.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(12, 0))
+    actions = ttk.Frame(frm)
+    actions.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(12, 0))
+    actions.columnconfigure(0, weight=1)
+
+    btn_run = ttk.Button(actions, text="Run", command=run_clicked)
+    btn_run.grid(row=0, column=0, sticky="ew")
+
+    btn_stop = ttk.Button(actions, text="Stop", command=stop_clicked, state="disabled")
+    btn_stop.grid(row=0, column=1, sticky="e", padx=(8, 0))
 
     _log("Tip: for speed use model=u2netp and a smaller mask max size (e.g. 768–1024).")
     root.minsize(780, 420)
