@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import threading
 import tkinter as tk
+import os
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -44,8 +47,18 @@ def main() -> None:
     frm.rowconfigure(8, weight=1)
 
     def _log(msg: str) -> None:
-        log.insert("end", msg + "\n")
-        log.see("end")
+        # Tk widgets must only be updated from the main thread.
+        def _do():
+            log.insert("end", msg + "\n")
+            log.see("end")
+
+        root.after(0, _do)
+
+    def _set_run_enabled(enabled: bool) -> None:
+        def _do():
+            btn_run.config(state="normal" if enabled else "disabled")
+
+        root.after(0, _do)
 
     def choose_input() -> None:
         d = filedialog.askdirectory(title="Select input folder")
@@ -79,44 +92,68 @@ def main() -> None:
                 )
                 return
 
-        cfg = RunConfig(
-            input_dir=Path(in_dir),
-            output_dir=Path(out_dir),
-            recursive=True,
-            extensions=(".tif", ".tiff", ".jpg", ".jpeg", ".png", ".webp", ".bmp"),
-            engine=engine,
-            model=model_var.get().strip() or "u2netp",
-            provider=provider_var.get().strip() or "auto",
-            workers=int(workers_var.get()),
-            mask_max_size=int(mask_var.get()),
-            alpha_matting=False,
-            am_fg_thresh=240,
-            am_bg_thresh=10,
-            am_erode_size=10,
-            post_process_mask=False,
-            compression="deflate",
-            overwrite=False,
-            skip_existing=True,
-        )
+        model = model_var.get().strip() or "u2netp"
+        provider = provider_var.get().strip() or "auto"
+        workers = int(workers_var.get())
+        mask_max_size = int(mask_var.get())
 
-        btn_run.config(state="disabled")
+        _set_run_enabled(False)
         _log("Starting… (this can take several minutes)")
 
         def _work() -> None:
             try:
-                stats = run_batch(cfg)
+                # Run the CLI in a subprocess to avoid UI freezes from multiprocessing
+                # and to keep all heavy work outside the Tk process.
+                cmd = [
+                    sys.executable,
+                    "-m",
+                    "removebg_batch.cli",
+                    "--input",
+                    in_dir,
+                    "--output",
+                    out_dir,
+                    "--engine",
+                    engine,
+                    "--model",
+                    model,
+                    "--provider",
+                    provider,
+                    "--workers",
+                    str(workers),
+                    "--mask-max-size",
+                    str(mask_max_size),
+                    "--compression",
+                    "deflate",
+                    "--skip-existing",
+                ]
+
+                env = os.environ.copy()
+                env["PYTHONUNBUFFERED"] = "1"
+                env["REMOVEBG_BATCH_NO_PROGRESS"] = "1"
+
+                _log("Command:")
+                _log("  " + " ".join(cmd))
                 _log("")
-                _log("Done.")
-                _log(f"Files found: {stats.total}")
-                _log(f"Processed:   {stats.processed}")
-                _log(f"Skipped:     {stats.skipped}")
-                _log(f"Failed:      {stats.failed}")
-                _log(f"Seconds:     {stats.seconds:.2f}")
-                _log(f"Provider:    {', '.join(stats.provider_choice.providers)}")
+
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    env=env,
+                )
+                assert proc.stdout is not None
+                for line in proc.stdout:
+                    _log(line.rstrip("\n"))
+
+                rc = proc.wait()
+                if rc != 0:
+                    _log(f"[fatal] process exited with code {rc}")
             except Exception as e:
                 _log(f"[fatal] {e}")
             finally:
-                btn_run.config(state="normal")
+                _set_run_enabled(True)
 
         threading.Thread(target=_work, daemon=True).start()
 

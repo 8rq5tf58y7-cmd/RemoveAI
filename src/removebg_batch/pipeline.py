@@ -123,6 +123,8 @@ def run_batch(config: RunConfig) -> RunStats:
     skipped = 0
     failed = 0
 
+    show_progress = os.environ.get("REMOVEBG_BATCH_NO_PROGRESS", "").strip() not in {"1", "true", "yes"}
+
     # Windows requires spawn-safe entrypoints; ProcessPoolExecutor handles this when called under __main__.
     from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -131,7 +133,8 @@ def run_batch(config: RunConfig) -> RunStats:
     # If only 1 worker, run inline (useful for debugging).
     if workers == 1:
         init_worker(worker_cfg)
-        for item in tqdm(items, total=len(items), unit="img"):
+        iterator = tqdm(items, total=len(items), unit="img") if show_progress else items
+        for item in iterator:
             res = process_one(item, worker_cfg)
             if res.skipped:
                 skipped += 1
@@ -154,7 +157,8 @@ def run_batch(config: RunConfig) -> RunStats:
         initargs=(worker_cfg,),
     ) as ex:
         futs = [ex.submit(process_one, item, worker_cfg) for item in items]
-        for fut in tqdm(as_completed(futs), total=len(futs), unit="img"):
+        iterator = tqdm(as_completed(futs), total=len(futs), unit="img") if show_progress else as_completed(futs)
+        for fut in iterator:
             res: WorkResult = fut.result()
             if res.skipped:
                 skipped += 1
