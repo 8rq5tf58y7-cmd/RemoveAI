@@ -1,0 +1,3 @@
+[console_scripts]
+removebg-batch = removebg_batch.cli:main
+removebg-batch-gui = removebg_batch.gui:main
