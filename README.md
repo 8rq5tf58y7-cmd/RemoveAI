@@ -25,7 +25,7 @@ This enables `--engine rembg` (more features/models, but heavier dependencies).
 ```bash
 chmod +x ./scripts/install_mac_linux_rembg.sh
 ./scripts/install_mac_linux_rembg.sh
-./.venv/bin/removebg-batch --engine rembg --help
+./.venv-rembg/bin/removebg-batch --engine rembg --help
 ```
 
 ### Quick start (Windows PowerShell)
@@ -39,7 +39,7 @@ chmod +x ./scripts/install_mac_linux_rembg.sh
 
 ```powershell
 .\scripts\install_windows_rembg.ps1
-.\.venv\Scripts\removebg-batch --engine rembg --help
+.\.venv-rembg\Scripts\removebg-batch --engine rembg --help
 ```
 
 ### Example usage

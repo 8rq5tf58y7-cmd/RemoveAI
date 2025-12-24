@@ -17,9 +17,21 @@ REQUIRED_PY="${REQUIRED_PY:-3.12}"
 EXTRAS="${EXTRAS:-}"
 
 if ! command -v uv >/dev/null 2>&1; then
-  echo "uv not found; installing it..."
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  export PATH="$HOME/.local/bin:$PATH"
+  if [ -x "${HOME}/.local/bin/uv" ]; then
+    export PATH="${HOME}/.local/bin:${PATH}"
+  elif [ -x "${HOME}/.cargo/bin/uv" ]; then
+    export PATH="${HOME}/.cargo/bin:${PATH}"
+  else
+    echo "uv not found; installing it..."
+    if ! curl -LsSf https://astral.sh/uv/install.sh | sh; then
+      echo ""
+      echo "Failed to install uv (network error)."
+      echo "If you already have uv installed, ensure it's on PATH and re-run."
+      exit 1
+    fi
+    # uv installer commonly places binaries here:
+    export PATH="${HOME}/.local/bin:${PATH}"
+  fi
 fi
 
 echo "Installing Python ${REQUIRED_PY} (via uv) ..."

@@ -1,5 +1,6 @@
 Param(
-  [string]$RequiredPy = "3.12"
+  [string]$RequiredPy = "3.12",
+  [string]$VenvDir = ".venv-rembg"
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,12 +22,13 @@ Write-Host "Installing Python $RequiredPy (via uv) ..."
 uv python install $RequiredPy
 
 Write-Host "Creating venv (.venv) ..."
-uv venv --python $RequiredPy .venv
+uv venv --python $RequiredPy $VenvDir
 
 Write-Host "Installing dependencies (with rembg extra)..."
-uv pip install -e ".[rembg]"
+& (Join-Path $VenvDir "Scripts\python.exe") -m pip install -U pip setuptools wheel
+& (Join-Path $VenvDir "Scripts\python.exe") -m pip install -c constraints\rembg_py312.txt -e ".[rembg]"
 
 Write-Host ""
 Write-Host "Installed rembg option. Use:"
-Write-Host "  .\.venv\Scripts\removebg-batch --engine rembg --help"
+Write-Host "  $VenvDir\Scripts\removebg-batch --engine rembg --help"
 

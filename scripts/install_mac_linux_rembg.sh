@@ -2,10 +2,10 @@
 set -euo pipefail
 
 # Installer for the OPTIONAL rembg engine.
-# - Uses uv to install Python 3.12 into a local .venv
+# - Uses uv to install Python 3.12 into a local venv (.venv-rembg)
 # - Installs the optional extra: .[rembg]
-# - If llvmlite tries to build from source on macOS, it may need LLVM.
-#   This script will attempt to install LLVM via Homebrew and re-run with LLVM env vars.
+# - Forces modern numba/llvmlite (Python 3.12 compatible) and prefers binary wheels
+#   to avoid source builds (and the LLVM toolchain) on macOS.
 
 if [ "${EUID:-$(id -u)}" -eq 0 ]; then
   echo "Do NOT run this installer with sudo."
@@ -17,48 +17,44 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
 REQUIRED_PY="${REQUIRED_PY:-3.12}"
+VENV_DIR="${VENV_DIR:-.venv-rembg}"
 
 if ! command -v uv >/dev/null 2>&1; then
-  echo "uv not found; installing it..."
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  export PATH="$HOME/.local/bin:$PATH"
+  if [ -x "${HOME}/.local/bin/uv" ]; then
+    export PATH="${HOME}/.local/bin:${PATH}"
+  elif [ -x "${HOME}/.cargo/bin/uv" ]; then
+    export PATH="${HOME}/.cargo/bin:${PATH}"
+  else
+    echo "uv not found; installing it..."
+    if ! curl -LsSf https://astral.sh/uv/install.sh | sh; then
+      echo ""
+      echo "Failed to install uv (network error)."
+      echo "If you already have uv installed, ensure it's on PATH and re-run."
+      exit 1
+    fi
+    export PATH="${HOME}/.local/bin:${PATH}"
+  fi
 fi
 
 echo "Installing Python ${REQUIRED_PY} (via uv) ..."
 uv python install "${REQUIRED_PY}"
 
-echo "Creating venv (.venv) ..."
-uv venv --python "${REQUIRED_PY}" .venv
+echo "Creating venv (${VENV_DIR}) ..."
+uv venv --python "${REQUIRED_PY}" "${VENV_DIR}"
 
 echo "Installing dependencies (with rembg extra)..."
-set +e
-uv pip install -e ".[rembg]"
-RC=$?
-set -e
 
-if [ "${RC}" -ne 0 ]; then
-  echo ""
-  echo "rembg install failed. If the error mentions missing LLVMConfig.cmake / llvm-config.cmake,"
-  echo "we can fix it by installing LLVM and pointing llvmlite's build at it."
-  echo ""
-  if command -v brew >/dev/null 2>&1; then
-    echo "Homebrew detected. Installing LLVM (and CMake) ..."
-    brew install llvm cmake || true
-    LLVM_PREFIX="$(brew --prefix llvm)"
-    export LLVM_CONFIG="${LLVM_PREFIX}/bin/llvm-config"
-    export LLVM_DIR="${LLVM_PREFIX}/lib/cmake/llvm"
-    export CMAKE_PREFIX_PATH="${LLVM_PREFIX}:${CMAKE_PREFIX_PATH:-}"
-    echo "Retrying install with LLVM_CONFIG=${LLVM_CONFIG}"
-    uv pip install -e ".[rembg]"
-  else
-    echo "Homebrew not found."
-    echo "Install Homebrew, then re-run this installer:"
-    echo "  https://brew.sh"
-    exit "${RC}"
-  fi
-fi
+source "${VENV_DIR}/bin/activate"
+
+# Some uv-created venvs may not include pip until seeded.
+python -m ensurepip --upgrade >/dev/null 2>&1 || true
+python -m pip install -U pip setuptools wheel
+
+# Prefer wheels for the heavy stack to avoid compilation on macOS.
+python -m pip install --only-binary=:all: -c constraints/rembg_py312.txt "numba>=0.61" "llvmlite>=0.44"
+python -m pip install -c constraints/rembg_py312.txt -e ".[rembg]"
 
 echo ""
 echo "Installed rembg option. Use:"
-echo "  ./.venv/bin/removebg-batch --engine rembg --help"
+echo "  ${VENV_DIR}/bin/removebg-batch --engine rembg --help"
 

@@ -28,6 +28,10 @@ rembg = [
   # Optional higher-level wrapper + extra models / matting.
   # Kept optional because it can pull in llvmlite/numba on some platforms.
   "rembg>=2.0.69",
+  # IMPORTANT: without a lower bound, some resolvers may pick very old numba/llvmlite
+  # which do not support Python 3.12+ (and will fail with "only versions >=3.6,<3.10").
+  "numba>=0.61",
+  "llvmlite>=0.44",
 ]
 
 [project.scripts]

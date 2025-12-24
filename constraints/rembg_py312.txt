@@ -1,0 +1,5 @@
+# Force modern wheels compatible with Python 3.12.
+# This prevents accidental resolution to old numba/llvmlite that hard-fails on 3.12+.
+numba>=0.61
+llvmlite>=0.44
+
