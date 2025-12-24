@@ -13,6 +13,7 @@ This repo contains a **local** (offline) batch background-removal app designed f
 ### Quick start (macOS / Linux)
 
 ```bash
+chmod +x ./scripts/install_mac_linux.sh
 ./scripts/install_mac_linux.sh
 ./.venv/bin/removebg-batch --help
 ```
@@ -56,4 +57,14 @@ pyinstaller --noconfirm --clean -n removebg-batch -F -m removebg_batch.cli
 ```
 
 The resulting binary appears in `dist/`.
+
+### macOS note (Python 3.13)
+
+If you install with **Python 3.13** on macOS, you may hit build failures for **`llvmlite`** (pulled in via `numba` → `pymatting` → `rembg`) because wheels may not be available yet.
+
+Fix: use **Python 3.12** for now:
+
+```bash
+PYTHON=python3.12 ./scripts/install_mac_linux.sh
+```
 

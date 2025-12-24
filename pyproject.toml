@@ -7,7 +7,7 @@ name = "removebg-batch"
 version = "0.1.0"
 description = "Local, TIFF-safe batch background removal (1000+ images) using ONNX segmentation models."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 license = { text = "MIT" }
 authors = [{ name = "RemoveBG Batch" }]
 
